@@ -92,6 +92,12 @@ namespace gazebo
 
     /// \brief Ignition publisher used to spawn the model.
     private: ignition::transport::Node::Publisher factoryPubIgn;
+
+    /// \brief Flag to indicate when joints have been set.
+    private: bool joints_set;
+
+    /// \brief Pointer to the world.
+    private: physics::WorldPtr world_;
   };
 }
 

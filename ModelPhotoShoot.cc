@@ -15,6 +15,7 @@
  *
 */
 #include <functional>
+#include <random>
 
 #include <boost/program_options.hpp>
 
@@ -123,6 +124,8 @@ void ModelPhotoShoot::Init()
       "/gazebo/server/control");
 
   this->factoryPub = this->node->Advertise<msgs::Factory>("~/factory");
+
+  this->joints_set = false;
 }
 
 /////////////////////////////////////////////
@@ -136,11 +139,44 @@ void ModelPhotoShoot::OnWorldCreated()
     msg.set_sdf(this->sdf->ToString());
     this->factoryPub->Publish(msg, true);
   }
+
+  //Load the world
+  this->world_ = physics::get_world("default");
 }
 
 /////////////////////////////////////////////
 void ModelPhotoShoot::Update()
 {
+  //Wait for model to load
+  if(world_->ModelCount()<1)
+  {
+    return;
+  }
+
+  if (!joints_set)
+  {
+    //Set model joints
+    physics::ModelPtr model = world_->ModelByName(this->modelName);
+    int num_joints_ = model->GetJointCount();
+    physics::Joint_V joint_v = model->GetJoints();
+    float joint_positions [num_joints_];
+    unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+    std::default_random_engine generator(seed);
+
+    for(std::size_t i = 0; i < num_joints_; ++i)
+    {
+      float mean = (joint_v[i]->LowerLimit()+joint_v[i]->UpperLimit())/2;
+      float stdv = (joint_v[i]->UpperLimit()- mean)/3;
+      std::normal_distribution<float> distribution(mean, stdv);
+      joint_positions[i] = distribution(generator);
+      joint_v[i]->SetPosition(0, joint_positions[i]);
+      std::cout << joint_v[i]->GetName() << " " << joint_v[i]->Position() << std::endl;
+    }
+
+    joints_set = true;
+    return;
+  }
+
   // Make sure to initialize the rendering engine in the same thread that will
   // capture images.
   if (!this->scene)
@@ -183,21 +219,6 @@ void ModelPhotoShoot::Update()
     return;
   }
   
-  //Set model joints
-  physics::WorldPtr world_ = physics::get_world("default");
-  physics::ModelPtr model = world_->ModelByName(this->modelName);
-  int num_joints_ = model->GetJointCount();
-  physics::Joint_V joint_v = model->GetJoints();
-  float joint_positions [num_joints_];
-  unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-  std::default_random_engine generator(seed);
-  for(std::size_t i = 0; i < num_joints_; ++i) 
-  {
-    std::uniform_real_distribution<> distribution(joint_v[i]->LowerLimit(),joint_v[i]->UpperLimit());
-    joint_positions[i] = distribution(generator);
-    joint_v[i]->SetPosition(0, joint_positions[i]);
-    std::cout << joint_v[i]->Position() << std::endl;
-  }
 
   if (this->camera && this->scene)
     event::Events::preRender();
@@ -216,6 +237,7 @@ void ModelPhotoShoot::Update()
       // Compute the model translation.
       ignition::math::Vector3d trans = bbox.Center();
       trans *= -scaling;
+      std::cout<<trans<<std::endl;
 
       // Normalize the size of the visual
       vis->SetScale(ignition::math::Vector3d(scaling, scaling, scaling));
