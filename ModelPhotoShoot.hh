@@ -19,6 +19,7 @@
 #define GAZEBO_PLUGINS_MODELPHOTOSHOOT_HH_
 
 #include <string>
+#include <fstream>
 #include <ignition/transport/Node.hh>
 
 #include <gazebo/common/Plugin.hh>
@@ -94,7 +95,16 @@ namespace gazebo
     private: ignition::transport::Node::Publisher factoryPubIgn;
 
     /// \brief Flag to indicate when joints have been set.
-    private: bool joints_set;
+    private: bool jointsSet;
+    /// \brief Flag to indicate if the user requested random
+    /// joints positions
+    private: bool randomJoints;
+
+    ///Flag inidicating if we should save to file
+    private: bool saveToFile;
+
+    /// \brief File in which to save the poses.
+    private: std::ofstream savingFile;
 
     /// \brief Pointer to the world.
     private: physics::WorldPtr world_;

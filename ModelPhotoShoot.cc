@@ -50,7 +50,9 @@ void ModelPhotoShoot::Load(int _argc, char **_argv)
   v_desc.add_options()
     ("propshop-save", po::value<std::string>(),
      "Path to save image files into.")
-    ("propshop-model", po::value<std::string>(), "Model to spawn.");
+    ("propshop-model", po::value<std::string>(), "Model to spawn.")
+    ("random-joints", po::bool_switch()->default_value(false), "Take pics with random joints positions")
+    ("data-file", po::value<std::string>(), "File to save position data");
 
   po::options_description desc("Options");
   desc.add(v_desc);
@@ -77,6 +79,17 @@ void ModelPhotoShoot::Load(int _argc, char **_argv)
   }
   else
     this->savePath = boost::filesystem::temp_directory_path();
+
+  /// TODO: check better for directory existence
+  this->saveToFile = false;
+  if (vm.count("data-file"))
+  {
+    this->saveToFile = true;
+    this->savingFile.open(vm["data-file"].as<std::string>());
+  }
+
+  //Check if joint positions should be random
+  this->randomJoints = vm["random-joints"].as<bool>();
 
   std::string modelFile;
 
@@ -125,7 +138,7 @@ void ModelPhotoShoot::Init()
 
   this->factoryPub = this->node->Advertise<msgs::Factory>("~/factory");
 
-  this->joints_set = false;
+  this->jointsSet = false;
 }
 
 /////////////////////////////////////////////
@@ -153,7 +166,8 @@ void ModelPhotoShoot::Update()
     return;
   }
 
-  if (!joints_set)
+  //Set joints to random positions if reqeusted
+  if (!this->jointsSet && this->randomJoints)
   {
     //Set model joints
     physics::ModelPtr model = world_->ModelByName(this->modelName);
@@ -170,10 +184,15 @@ void ModelPhotoShoot::Update()
       std::normal_distribution<float> distribution(mean, stdv);
       joint_positions[i] = distribution(generator);
       joint_v[i]->SetPosition(0, joint_positions[i]);
-      std::cout << joint_v[i]->GetName() << " " << joint_v[i]->Position() << std::endl;
+      if (saveToFile)
+      {
+        this->savingFile << joint_v[i]->GetName() << " " << joint_v[i]->Position() << std::endl;
+      }
+      else
+        std::cout << joint_v[i]->GetName() << " " << joint_v[i]->Position() << std::endl;
     }
 
-    joints_set = true;
+    jointsSet = true;
     return;
   }
 
@@ -237,7 +256,12 @@ void ModelPhotoShoot::Update()
       // Compute the model translation.
       ignition::math::Vector3d trans = bbox.Center();
       trans *= -scaling;
-      std::cout<<trans<<std::endl;
+      if (saveToFile)
+      {
+        this->savingFile<<"Translation: " << trans<<std::endl;
+      }
+      else
+        std::cout<<trans<<std::endl;
 
       // Normalize the size of the visual
       vis->SetScale(ignition::math::Vector3d(scaling, scaling, scaling));
@@ -301,6 +325,9 @@ void ModelPhotoShoot::Update()
 
       this->worldCreatedConn.reset();
       this->updateConn.reset();
+
+       if (saveToFile)
+        savingFile.close();
 
       // Clean up the camera.
       this->camera.reset();
