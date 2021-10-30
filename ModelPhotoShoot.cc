@@ -141,10 +141,26 @@ void ModelPhotoShoot::Init()
   this->jointsSet = false;
 }
 
+// Helper function to remove all lights from sdf
+void RemoveLights(sdf::ElementPtr elem)
+{
+  while (elem->HasElement("light"))
+    elem->GetElement("light")->RemoveFromParent();
+
+  sdf::ElementPtr child_elem = elem->GetFirstElement();
+  while (child_elem)
+  {
+    RemoveLights(child_elem);
+    child_elem =  child_elem->GetNextElement();
+  }
+}
+
 /////////////////////////////////////////////
 void ModelPhotoShoot::OnWorldCreated()
 {
   this->factoryPub->WaitForConnection();
+
+  RemoveLights(this->sdf->Root());
 
   if (this->sdf)
   {
@@ -258,10 +274,10 @@ void ModelPhotoShoot::Update()
       trans *= -scaling;
       if (saveToFile)
       {
-        this->savingFile<<"Translation: " << trans<<std::endl;
+        this->savingFile << "Translation: " << trans << std::endl;
       }
       else
-        std::cout<<trans<<std::endl;
+        std::cout << trans << std::endl;
 
       // Normalize the size of the visual
       vis->SetScale(ignition::math::Vector3d(scaling, scaling, scaling));
@@ -270,6 +286,9 @@ void ModelPhotoShoot::Update()
 
       // Place the visual at the origin
       bbox = vis->BoundingBox();
+
+      // Set same bg color as drake
+      this->camera->SetBackgroundColor(ignition::math::Color(0.8,0.898039f,1));
 
       ignition::math::Pose3d pose;
 
